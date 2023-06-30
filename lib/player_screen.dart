@@ -93,13 +93,20 @@ class _PlayerScreenState extends State<PlayerScreen>
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
       SystemChrome.setPreferredOrientations(
           [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-
-      await Future.delayed(const Duration(milliseconds: 1000));
-      if (widget.seekOnInit != null) {
-        flickManager.flickControlManager!.seekForward(
-          widget.seekOnInit!,
-        );
-      }
+      bool shouldSeek = true;
+      flickManager.flickVideoManager!.videoPlayerController!
+          .addListener(() async {
+        //Future.delayed(const Duration(milliseconds: 1000));
+        if (flickManager
+                .flickVideoManager!.videoPlayerController!.value.isPlaying &&
+            widget.seekOnInit != null &&
+            shouldSeek) {
+          shouldSeek = false;
+          flickManager.flickControlManager!.seekForward(
+            widget.seekOnInit!,
+          );
+        }
+      });
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
     });
 
