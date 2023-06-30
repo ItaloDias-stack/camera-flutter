@@ -1,7 +1,9 @@
 import 'dart:developer';
 
 import 'package:camera_test/camera_screen.dart';
+import 'package:camera_test/player_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:subtitle_wrapper_package/subtitle_wrapper_package.dart';
 
 void main() {
   runApp(const MyApp());
@@ -33,16 +35,43 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: ElevatedButton(
-          onPressed: () {
-            pushToCameraScreen(
-              context: context,
-              onFileAdded: (file) {
-                log("Caminho do arquivo:$file");
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () {
+                pushToCameraScreen(
+                  context: context,
+                  onFileAdded: (file) {
+                    log("Caminho do arquivo:$file");
+                  },
+                );
               },
-            );
-          },
-          child: Text("Abrir câmera"),
+              child: const Text("Abrir câmera"),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                pushToPlayerScreen(
+                  context: context,
+                  movieUrl:
+                      "https://github.com/GeekyAnts/flick-video-player-demo-videos/blob/master/example/9th_may_compressed.mp4?raw=true",
+                  onExit: () {},
+                  onBackground: () {},
+                  seekOnInit: const Duration(seconds: 15),
+                  secondaryColor: Colors.green,
+                  primaryColor: Colors.yellow,
+                  playerHeader: Container(
+                    width: 60,
+                    height: 60,
+                    color: Colors.transparent,
+                  ),
+                );
+              },
+              child: const Text("Abrir player"),
+            ),
+          ],
         ),
       ),
     );
