@@ -18,6 +18,8 @@ class PreviewScreen extends StatelessWidget {
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          Navigator.pop(context);
+          Navigator.pop(context);
           onSave(File(picture.path));
         },
         child: const Icon(

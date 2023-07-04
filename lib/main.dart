@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:camera_test/camera_screen.dart';
+import 'package:camera_test/custom_file_picker.dart';
 import 'package:camera_test/player_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:subtitle_wrapper_package/subtitle_wrapper_package.dart';
@@ -70,6 +71,18 @@ class _MyHomePageState extends State<MyHomePage> {
                 );
               },
               child: const Text("Abrir player"),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FilepickerScreen(),
+                  ),
+                );
+              },
+              child: const Text("Abrir o file picker"),
             ),
           ],
         ),
