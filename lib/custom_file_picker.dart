@@ -1,9 +1,11 @@
+import 'dart:developer';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:camera_test/camera_screen.dart';
 import 'package:camera_test/image_details.dart';
 import 'package:camera_test/misc.dart';
+import 'package:camera_test/pdf_details.dart';
 import 'package:camera_test/video_details.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +13,6 @@ import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:loomi_ui_flutter/utils/custom_icons.dart';
 import 'package:loomi_ui_flutter/widgets/custom_button.dart';
 import 'package:loomi_ui_flutter/widgets/get_icon.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 
 class FilepickerScreen extends StatefulWidget {
@@ -63,6 +64,7 @@ class CustomFilePicker extends StatefulWidget {
 class _CustomFilePickerState extends State<CustomFilePicker> {
   List<File> files = [];
   List<File> compressedImageList = [];
+  bool loading = false;
   @override
   void initState() {
     if (widget.previousFiles != null) {
@@ -134,7 +136,7 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
                 if (widget.showActions)
                   GestureDetector(
                     onTap: () {
-                      if (files.length < widget.limitOfFiles) {
+                      if (!loading && files.length < widget.limitOfFiles) {
                         showFileSourceDialog();
                       }
                     },
@@ -151,21 +153,28 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
                         children: [
                           Center(
                             child: Container(
+                              width: 40,
+                              height: 40,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(50),
                                 color: Colors.white.withOpacity(.5),
                               ),
                               padding: const EdgeInsets.all(10),
-                              child: GetIcon(
-                                CustomIcons.plusSquareRegular,
-                                color: widget.componentsColor ??
-                                    Theme.of(context).primaryColor,
-                              ),
+                              child: !loading
+                                  ? GetIcon(
+                                      CustomIcons.plusSquareRegular,
+                                      color: widget.componentsColor ??
+                                          Theme.of(context).primaryColor,
+                                    )
+                                  : CircularProgressIndicator(
+                                      color: widget.componentsColor ??
+                                          Theme.of(context).primaryColor,
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 15),
                           Text(
-                            "Incluir mídia",
+                            !loading ? "Incluir mídia" : "Incluindo mídia",
                             style: Theme.of(context)
                                 .textTheme
                                 .titleMedium!
@@ -181,15 +190,20 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
                 for (int i = 0; i < files.length; i++)
                   GestureDetector(
                     onTap: () {
-                      if (getFileExtension(files[i].path) == "png" ||
-                          getFileExtension(files[i].path) == "jpg" ||
-                          getFileExtension(files[i].path) == "jpeg") {
+                      var extension = getFileExtension(files[i].path);
+                      if (extension.toLowerCase() == "png" ||
+                          extension.toLowerCase() == "jpg" ||
+                          extension.toLowerCase() == "jpeg") {
                         showImageDetails(files[i].path, context);
                       }
-                      if (getFileExtension(files[i].path) == "mp4") {
+                      if (extension.toLowerCase() == "pdf") {
+                        showPdfDetails(files[i].path, context);
+                      }
+                      if (extension.toLowerCase() == "mp4") {
                         showVideoDetails(files[i].path, context);
                       }
                     },
+                    behavior: HitTestBehavior.translucent,
                     child: Stack(
                       children: [
                         FileThumbnail(
@@ -197,7 +211,7 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
                           compressedFile: compressedImageList[i],
                         ),
                         if (widget.showActions)
-                          Positioned.fill(
+                          Positioned(
                             child: Container(
                               margin: const EdgeInsets.all(10),
                               alignment: Alignment.topRight,
@@ -244,53 +258,74 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
       builder: (context) {
         return ChooseFileSourceDialog(
           onCamera: () async {
-            Navigator.pop(context);
-            await pushToCameraScreen(
-              context: context,
-              onFileAdded: (file) async {
-                File? picture = File(file);
-                files.add(picture);
-                compressedImageList.add(
-                  await compressAndGetFile(
-                    file: picture,
-                    minWidth: 175,
-                    minHeight: 175,
-                  ),
-                );
-                setState(() {});
-                widget.onAdd(picture);
-              },
-            );
-          },
-          onUpload: () async {
-            Navigator.pop(context);
-            FilePickerResult? result = await FilePicker.platform.pickFiles(
-              allowMultiple: true,
-              type: FileType.any,
-            );
-
-            if (result != null) {
-              for (var element in result.paths) {
-                files.add(File(element!));
-                if (getFileExtension(element) == "png" ||
-                    getFileExtension(element) == "jpg" ||
-                    getFileExtension(element) == "jpeg") {
+            setState(() {
+              loading = true;
+            });
+            try {
+              Navigator.pop(context);
+              await pushToCameraScreen(
+                context: context,
+                onFileAdded: (file) async {
+                  File? picture = File(file);
+                  files.add(picture);
                   compressedImageList.add(
                     await compressAndGetFile(
-                      file: File(element),
+                      file: picture,
                       minWidth: 175,
                       minHeight: 175,
                     ),
                   );
-                } else {
-                  compressedImageList.add(
-                    File(element),
-                  );
-                }
-                widget.onAdd(File(element));
-              }
-              setState(() {});
+                  setState(() {});
+                  widget.onAdd(picture);
+                },
+              );
+            } catch (e) {
+              // ignore: avoid_print
+              print(e);
             }
+            setState(() {
+              loading = false;
+            });
+          },
+          onUpload: () async {
+            setState(() {
+              loading = true;
+            });
+            try {
+              Navigator.pop(context);
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                allowMultiple: true,
+                type: FileType.any,
+              );
+
+              if (result != null) {
+                for (var element in result.paths) {
+                  files.add(File(element!));
+                  if (getFileExtension(element) == "png" ||
+                      getFileExtension(element) == "jpg" ||
+                      getFileExtension(element) == "jpeg") {
+                    compressedImageList.add(
+                      await compressAndGetFile(
+                        file: File(element),
+                        minWidth: 175,
+                        minHeight: 175,
+                      ),
+                    );
+                  } else {
+                    compressedImageList.add(
+                      File(element),
+                    );
+                  }
+                  widget.onAdd(File(element));
+                }
+              }
+            } catch (e) {
+              // ignore: avoid_print
+              print(e);
+            }
+            setState(() {
+              loading = false;
+            });
           },
         );
       },
@@ -304,7 +339,9 @@ class FileThumbnail extends StatelessWidget {
     required this.file,
     required this.compressedFile,
   }) {
-    _getVideoThumbnailBytes = getVideoThumbnailBytes();
+    if (getFileExtension(file.path).toLowerCase() == "mp4") {
+      _getVideoThumbnailBytes = getVideoThumbnailBytes();
+    }
   }
 
   final File file;
@@ -341,8 +378,10 @@ class FileThumbnail extends StatelessWidget {
                 fit: BoxFit.cover,
               );
       case "pdf":
-        return PDFView(
-          filePath: file.path,
+        return IgnorePointer(
+          child: PDFView(
+            filePath: file.path,
+          ),
         );
       case "mp4":
         return FutureBuilder<Uint8List>(
