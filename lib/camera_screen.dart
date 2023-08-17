@@ -53,6 +53,7 @@ class _CameraScreenState extends State<CameraScreen>
   final double _maxAvailableZoom = 3.0;
   bool _isFlashOn = false;
   int pointerCount = 0;
+
   @override
   void initState() {
     initCamera(widget.cameras[0]);
@@ -98,7 +99,6 @@ class _CameraScreenState extends State<CameraScreen>
       return null;
     }
     try {
-      //await _cameraController.setFlashMode(FlashMode.off);
       if (_isFlashOn) {
         await _cameraController.setFlashMode(FlashMode.torch);
       } else {

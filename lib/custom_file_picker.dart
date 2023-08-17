@@ -1,14 +1,19 @@
+import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera_test/camera_screen.dart';
 import 'package:camera_test/image_details.dart';
 import 'package:camera_test/misc.dart';
+import 'package:camera_test/pdf_details.dart';
 import 'package:camera_test/video_details.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:loomi_ui_flutter/utils/custom_icons.dart';
 import 'package:loomi_ui_flutter/widgets/custom_button.dart';
 import 'package:loomi_ui_flutter/widgets/get_icon.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 class FilepickerScreen extends StatefulWidget {
   const FilepickerScreen({super.key});
@@ -21,17 +26,11 @@ class _FilepickerScreenState extends State<FilepickerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 15),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CustomFilePicker(
-              label: "Arquivos",
-              onAdd: (file) {},
-              limitOfFiles: 6,
-            ),
-          ],
+      body: SafeArea(
+        child: CustomFilePicker(
+          label: "Arquivos",
+          onAdd: (file) {},
+          limitOfFiles: 10,
         ),
       ),
     );
@@ -46,6 +45,7 @@ class CustomFilePicker extends StatefulWidget {
   final Color? componentsColor;
   final bool showActions;
   final int limitOfFiles;
+
   const CustomFilePicker({
     super.key,
     required this.label,
@@ -64,6 +64,7 @@ class CustomFilePicker extends StatefulWidget {
 class _CustomFilePickerState extends State<CustomFilePicker> {
   List<File> files = [];
   List<File> compressedImageList = [];
+  bool loading = false;
   @override
   void initState() {
     if (widget.previousFiles != null) {
@@ -75,284 +76,144 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
     super.initState();
   }
 
-  getFileExtension(String path) {
-    return path.split("/").last.split(".").last;
-  }
-
-  showChooseCameraOrFilesModal() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          contentPadding: const EdgeInsets.all(0),
-          backgroundColor: Colors.transparent,
-          content: Container(
-            decoration: const BoxDecoration(
-              borderRadius: BorderRadius.all(Radius.circular(20)),
-              color: Colors.white,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            height: 250,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CustomButton(
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await pushToCameraScreen(
-                      context: context,
-                      onFileAdded: (file) async {
-                        File? picture = File(file);
-                        files.add(picture);
-                        compressedImageList.add(
-                          await compressAndGetFile(
-                              file: picture, minWidth: 175, minHeight: 175),
-                        );
-                        setState(() {});
-                        widget.onAdd(picture);
-                      },
-                    );
-                  },
-                  backgroundColor: Colors.white,
-                  text: "Tirar foto",
-                  buttonTextStyle:
-                      Theme.of(context).textTheme.titleMedium!.copyWith(
-                            color: Theme.of(context).primaryColor,
-                          ),
-                  padding: const EdgeInsets.all(16),
-                  sufix: Container(
-                    margin: const EdgeInsets.only(left: 10),
-                    child: Icon(
-                      Icons.camera_alt_outlined,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                CustomButton(
-                  buttonTextStyle:
-                      Theme.of(context).textTheme.titleMedium!.copyWith(
-                            color: Theme.of(context).primaryColor,
-                          ),
-                  padding: const EdgeInsets.all(16),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    FilePickerResult? result =
-                        await FilePicker.platform.pickFiles(
-                      allowMultiple: true,
-                      type: FileType.any,
-                    );
-
-                    if (result != null) {
-                      for (var element in result.paths) {
-                        files.add(File(element!));
-                        if (getFileExtension(element) == "png" ||
-                            getFileExtension(element) == "jpg" ||
-                            getFileExtension(element) == "jpeg") {
-                          compressedImageList.add(
-                            await compressAndGetFile(
-                              file: File(element),
-                              minWidth: 175,
-                              minHeight: 175,
-                            ),
-                          );
-                        } else {
-                          compressedImageList.add(
-                            File(element),
-                          );
-                        }
-                        widget.onAdd(File(element));
-                      }
-                      setState(() {});
-                    }
-                  },
-                  backgroundColor: Colors.white,
-                  text: "Buscar arquivo",
-                  sufix: Container(
-                    margin: const EdgeInsets.only(left: 10),
-                    child: Icon(
-                      Icons.upload_file_outlined,
-                      color: Theme.of(context).primaryColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              widget.label,
-              style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            if (widget.showActions)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    "${files.length} de ${widget.limitOfFiles}",
-                    style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                  ),
-                  const SizedBox(width: 15),
-                  SizedBox(
-                    height: 15,
-                    width: 15,
-                    child: CircularProgressIndicator(
-                      color: Theme.of(context).primaryColor,
-                      backgroundColor: Colors.grey.withOpacity(.8),
-                      value: (files.length * (100 / widget.limitOfFiles)) / 100,
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-        const SizedBox(height: 15),
-        SizedBox(
-          height: 175,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            shrinkWrap: true,
-            children: [
-              if (widget.showActions)
-                Container(
-                  width: 175,
-                  margin: const EdgeInsets.only(right: 10),
-                  decoration: BoxDecoration(
-                    color: widget.componentsColor ??
-                        Theme.of(context).primaryColor.withOpacity(.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            height: 50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  widget.label,
+                  style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                if (widget.showActions)
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      GestureDetector(
-                        onTap: () {
-                          if (files.length < widget.limitOfFiles)
-                            showChooseCameraOrFilesModal();
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(50),
-                            color: Colors.white.withOpacity(.5),
-                          ),
-                          padding: const EdgeInsets.all(10),
-                          child: GetIcon(
-                            CustomIcons.plusSquareRegular,
-                            color: widget.componentsColor ??
-                                Theme.of(context).primaryColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
                       Text(
-                        "Incluir mídia",
-                        style:
-                            Theme.of(context).textTheme.titleMedium!.copyWith(
-                                  color: Theme.of(context).primaryColor,
-                                  fontSize: 18,
-                                ),
+                        "${files.length} de ${widget.limitOfFiles}",
+                        style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                      ),
+                      Container(
+                        height: 15,
+                        width: 15,
+                        margin: const EdgeInsets.only(left: 15, right: 5),
+                        child: CircularProgressIndicator(
+                          color: Theme.of(context).primaryColor,
+                          backgroundColor: Colors.grey.withOpacity(.8),
+                          value: (files.length * (100 / widget.limitOfFiles)) /
+                              100,
+                        ),
                       ),
                     ],
                   ),
-                ),
-              for (int i = 0; i < files.length; i++)
-                GestureDetector(
-                  onTap: () {
-                    if (getFileExtension(files[i].path) == "png" ||
-                        getFileExtension(files[i].path) == "jpg" ||
-                        getFileExtension(files[i].path) == "jpeg") {
-                      showImageDetails(files[i].path, context);
-                    }
-                    if (getFileExtension(files[i].path) == "mp4") {
-                      showVideoDetails(files[i].path, context);
-                    }
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 16),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 0, 15, 15),
+            child: GridView.count(
+              scrollDirection: Axis.vertical,
+              physics: const NeverScrollableScrollPhysics(),
+              shrinkWrap: true,
+              crossAxisCount: 2,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: [
+                if (widget.showActions)
+                  GestureDetector(
+                    onTap: () {
+                      if (!loading && files.length < widget.limitOfFiles) {
+                        showFileSourceDialog();
+                      }
+                    },
+                    child: Container(
+                      width: 175,
+                      decoration: BoxDecoration(
+                        color: widget.componentsColor ??
+                            Theme.of(context).primaryColor.withOpacity(.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(50),
+                                color: Colors.white.withOpacity(.5),
+                              ),
+                              padding: const EdgeInsets.all(10),
+                              child: !loading
+                                  ? GetIcon(
+                                      CustomIcons.plusSquareRegular,
+                                      color: widget.componentsColor ??
+                                          Theme.of(context).primaryColor,
+                                    )
+                                  : CircularProgressIndicator(
+                                      color: widget.componentsColor ??
+                                          Theme.of(context).primaryColor,
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          Text(
+                            !loading ? "Incluir mídia" : "Incluindo mídia",
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium!
+                                .copyWith(
+                                  color: Theme.of(context).primaryColor,
+                                  fontSize: 18,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                for (int i = 0; i < files.length; i++)
+                  GestureDetector(
+                    onTap: () {
+                      var extension = getFileExtension(files[i].path);
+                      if (extension.toLowerCase() == "png" ||
+                          extension.toLowerCase() == "jpg" ||
+                          extension.toLowerCase() == "jpeg") {
+                        showImageDetails(files[i].path, context);
+                      }
+                      if (extension.toLowerCase() == "pdf") {
+                        showPdfDetails(files[i].path, context);
+                      }
+                      if (extension.toLowerCase() == "mp4") {
+                        showVideoDetails(files[i].path, context);
+                      }
+                    },
+                    behavior: HitTestBehavior.translucent,
                     child: Stack(
                       children: [
-                        Container(
-                          width: 175,
-                          decoration: BoxDecoration(
-                            image: getFileExtension(files[i].path) == "png" ||
-                                    getFileExtension(files[i].path) == "jpg" ||
-                                    getFileExtension(files[i].path) == "jpeg"
-                                ? DecorationImage(
-                                    image: compressedImageList[i]
-                                            .path
-                                            .contains("http")
-                                        ? NetworkImage(
-                                            compressedImageList[i].path)
-                                        : FileImage(
-                                            compressedImageList[i],
-                                          ) as ImageProvider,
-                                    fit: BoxFit.cover,
-                                  )
-                                : null,
-                            borderRadius: BorderRadius.circular(20),
-                            color: widget.componentsColor ??
-                                Theme.of(context).primaryColor.withOpacity(.1),
-                          ),
-                          child: getFileExtension(files[i].path) == "png" ||
-                                  getFileExtension(files[i].path) == "jpg" ||
-                                  getFileExtension(files[i].path) == "jpeg"
-                              ? null
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    GetIcon(
-                                      getFileExtension(files[i].path) == "mp4"
-                                          ? CustomIcons.videoRegular
-                                          : CustomIcons.fileRegular,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
-                                    const SizedBox(height: 15),
-                                    Container(
-                                      margin: const EdgeInsets.symmetric(
-                                          horizontal: 10),
-                                      child: Text(
-                                        files[i].path.split('/').last,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium!
-                                            .copyWith(
-                                              color: Theme.of(context)
-                                                  .primaryColor,
-                                              fontSize: 14,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                        FileThumbnail(
+                          file: files[i],
+                          compressedFile: compressedImageList[i],
                         ),
                         if (widget.showActions)
-                          Positioned.fill(
+                          Positioned(
                             child: Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
-                              ),
+                              margin: const EdgeInsets.all(10),
                               alignment: Alignment.topRight,
                               child: GestureDetector(
                                 onTap: () {
@@ -369,11 +230,12 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
                                     borderRadius: BorderRadius.circular(50),
                                     color: Colors.white,
                                   ),
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(8),
                                   child: GetIcon(
                                     CustomIcons.trash,
                                     color: widget.componentsColor ??
                                         Theme.of(context).primaryColor,
+                                    heigth: 20,
                                   ),
                                 ),
                               ),
@@ -382,11 +244,261 @@ class _CustomFilePickerState extends State<CustomFilePicker> {
                       ],
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+
+  showFileSourceDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return ChooseFileSourceDialog(
+          onCamera: () async {
+            setState(() {
+              loading = true;
+            });
+            try {
+              Navigator.pop(context);
+              await pushToCameraScreen(
+                context: context,
+                onFileAdded: (file) async {
+                  File? picture = File(file);
+                  files.add(picture);
+                  compressedImageList.add(
+                    await compressAndGetFile(
+                      file: picture,
+                      minWidth: 175,
+                      minHeight: 175,
+                    ),
+                  );
+                  setState(() {});
+                  widget.onAdd(picture);
+                },
+              );
+            } catch (e) {
+              // ignore: avoid_print
+              print(e);
+            }
+            setState(() {
+              loading = false;
+            });
+          },
+          onUpload: () async {
+            setState(() {
+              loading = true;
+            });
+            try {
+              Navigator.pop(context);
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                allowMultiple: true,
+                type: FileType.any,
+              );
+
+              if (result != null) {
+                for (var element in result.paths) {
+                  files.add(File(element!));
+                  if (getFileExtension(element) == "png" ||
+                      getFileExtension(element) == "jpg" ||
+                      getFileExtension(element) == "jpeg") {
+                    compressedImageList.add(
+                      await compressAndGetFile(
+                        file: File(element),
+                        minWidth: 175,
+                        minHeight: 175,
+                      ),
+                    );
+                  } else {
+                    compressedImageList.add(
+                      File(element),
+                    );
+                  }
+                  widget.onAdd(File(element));
+                }
+              }
+            } catch (e) {
+              // ignore: avoid_print
+              print(e);
+            }
+            setState(() {
+              loading = false;
+            });
+          },
+        );
+      },
+    );
+  }
+}
+
+class FileThumbnail extends StatelessWidget {
+  FileThumbnail({
+    super.key,
+    required this.file,
+    required this.compressedFile,
+  }) {
+    if (getFileExtension(file.path).toLowerCase() == "mp4") {
+      _getVideoThumbnailBytes = getVideoThumbnailBytes();
+    }
+  }
+
+  final File file;
+  final File compressedFile;
+  Future<Uint8List>? _getVideoThumbnailBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 175,
+        height: 175,
+        color: Theme.of(context).primaryColor.withOpacity(.1),
+        child: getWidgetFromExtension(context),
+      ),
+    );
+  }
+
+  Widget getWidgetFromExtension(BuildContext context) {
+    var extension = getFileExtension(file.path);
+
+    switch (extension.toLowerCase()) {
+      case "jpg":
+      case "png":
+      case "jpeg":
+        return file.path.contains("http")
+            ? Image.network(
+                file.path,
+                fit: BoxFit.cover,
+              )
+            : Image.file(
+                file,
+                fit: BoxFit.cover,
+              );
+      case "pdf":
+        return IgnorePointer(
+          child: PDFView(
+            filePath: file.path,
+          ),
+        );
+      case "mp4":
+        return FutureBuilder<Uint8List>(
+          future: _getVideoThumbnailBytes,
+          builder: (context, snapshot) {
+            if (!snapshot.hasData || snapshot.data == null) {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            } else {
+              return Image.memory(
+                snapshot.data!,
+                fit: BoxFit.cover,
+              );
+            }
+          },
+        );
+      default:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GetIcon(
+              CustomIcons.fileRegular,
+              color: Theme.of(context).primaryColor,
+            ),
+            const SizedBox(height: 15),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                file.path.split('/').last,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                      color: Theme.of(context).primaryColor,
+                      fontSize: 14,
+                    ),
+              ),
+            ),
+          ],
+        );
+    }
+  }
+
+  Future<Uint8List> getVideoThumbnailBytes() async {
+    return (await VideoThumbnail.thumbnailData(
+          video: file.path,
+          imageFormat: ImageFormat.JPEG,
+          maxWidth: 128,
+          quality: 25,
+        )) ??
+        Uint8List(0);
+  }
+}
+
+class ChooseFileSourceDialog extends StatelessWidget {
+  const ChooseFileSourceDialog({
+    super.key,
+    required this.onCamera,
+    required this.onUpload,
+  });
+  final Function() onCamera;
+  final Function() onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      contentPadding: const EdgeInsets.all(0),
+      backgroundColor: Colors.transparent,
+      content: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.white,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomButton(
+              onTap: onCamera,
+              backgroundColor: Colors.white,
+              padding: const EdgeInsets.only(right: 10),
+              text: "Câmera",
+              buttonTextStyle:
+                  Theme.of(context).textTheme.titleMedium!.copyWith(
+                        color: Theme.of(context).primaryColor,
+                      ),
+              prefix: Icon(
+                Icons.camera_alt_outlined,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            CustomButton(
+              buttonTextStyle:
+                  Theme.of(context).textTheme.titleMedium!.copyWith(
+                        color: Theme.of(context).primaryColor,
+                      ),
+              onTap: onUpload,
+              backgroundColor: Colors.white,
+              padding: const EdgeInsets.only(right: 10),
+              text: "Arquivos",
+              prefix: Icon(
+                Icons.folder_outlined,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String getFileExtension(String path) {
+  return path.split("/").last.split(".").last;
 }
